@@ -48,8 +48,9 @@ void main() async {
   // this can take some time if we're running on a crappy device, so let's give it a chance to breathe
   await Future.delayed(Duration(milliseconds: 5000));
 
-  if ("你的妈妈叫什么名字" != results.last.words.map((w) => w.word).join()) {
-    throw Exception("Decode failure");
+  var resultString = results.last.words.map((w) => w.word).join();
+  if ("你的妈妈叫什么名字" != resultString) {
+    throw Exception("Decode failure, got $resultString");
   }
 
   // print(results.last.words
