@@ -11,4 +11,9 @@ class ASRResult {
   final List<WordTranscription> words;
 
   ASRResult(this.isFinal, this.words);
+
+  @override
+  String toString() {
+    return "ASRResult(words='${words.map((w) => w.word).toList()}')";
+  }
 }

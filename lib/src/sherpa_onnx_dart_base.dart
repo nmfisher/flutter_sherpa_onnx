@@ -30,17 +30,22 @@ class SherpaOnnx {
   final _createdRecognizerPort = ReceivePort();
   late final Stream _createdRecognizerPortStream =
       _createdRecognizerPort.asBroadcastStream();
+  bool _hasRecognizer = false;
+
   final _createdStreamPort = ReceivePort();
   Completer? _createdStream;
+  bool _hasStream = false;
 
   final _setupPort = ReceivePort();
   bool _killed = false;
   final _resultPort = ReceivePort();
 
-  late SendPort _dataPort;
+  late SendPort _waveformStreamPort;
+  late SendPort _decodeWaveformPort;
   late SendPort _createRecognizerPort;
   late SendPort _killRecognizerPort;
   late SendPort _createStreamPort;
+  late SendPort _destroyStreamPort;
   late SendPort _shutdownPort;
   final _isolateSetupComplete = Completer();
 
@@ -50,11 +55,13 @@ class SherpaOnnx {
 
   SherpaOnnx() {
     _setupListener = _setupPort.listen((msg) {
-      _dataPort = msg[0];
-      _createRecognizerPort = msg[1];
-      _killRecognizerPort = msg[2];
-      _createStreamPort = msg[3];
-      _shutdownPort = msg[4];
+      _waveformStreamPort = msg[0];
+      _decodeWaveformPort = msg[1];
+      _createRecognizerPort = msg[2];
+      _killRecognizerPort = msg[3];
+      _createStreamPort = msg[4];
+      _destroyStreamPort = msg[5];
+      _shutdownPort = msg[6];
       _isolateSetupComplete.complete(true);
     });
 
@@ -96,8 +103,6 @@ class SherpaOnnx {
   Future decodeBuffer() async {
     throw Exception("TODO");
   }
-
-  bool _hasRecognizer = false;
 
   ///
   /// Creates a recognizer using the tokens, encoder, decoder and joiner at the specified paths.
@@ -146,11 +151,16 @@ class SherpaOnnx {
       throw Exception("Failed to create stream. Is a recognizer available?");
     }
     _createdStream = null;
+    _hasStream = true;
     return result;
   }
 
-  Future destroyStream() {
-    throw Exception("TODO");
+  Future destroyStream() async {
+    print("Destroying stream");
+    _destroyStreamPort.send(true);
+    await Future.delayed(Duration.zero);
+    _hasStream = false;
+    print("hasStream $_hasStream ");
   }
 
   Future destroyRecognizer() async {
@@ -167,7 +177,23 @@ class SherpaOnnx {
           "Warning - recognizer has been destroyed, this data will be ignored");
       return;
     }
-    _dataPort.send(data);
+    _waveformStreamPort.send(data);
+  }
+
+  Future<ASRResult> decodeWaveform(Uint8List data) async {
+    if (_hasStream) {
+      throw Exception("Stream already exists. Call [destroyStream] first");
+    }
+    final completer = Completer<ASRResult>();
+
+    await createStream(null);
+    var resultListener = result.listen((result) {
+      completer.complete(result);
+    });
+    _decodeWaveformPort.send(data);
+    await completer.future;
+    resultListener.cancel();
+    return completer.future;
   }
 
   Future dispose() async {

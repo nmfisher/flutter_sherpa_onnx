@@ -6,6 +6,7 @@ import 'dart:typed_data';
 class AudioBuffer {
   late Uint8List _data;
   int _sampleRate;
+  int get sampleRate => _sampleRate;
 
   int _bytesWritten = 0;
 
@@ -30,9 +31,15 @@ class AudioBuffer {
     }
   }
 
-  Uint8List getSegment(double offsetInSeconds, double lengthInSeconds) {
+  Uint8List getSegment(double offsetInSeconds, double? lengthInSeconds) {
     var start = (offsetInSeconds * 2 * _sampleRate).toInt();
-    var lengthInBytes = (lengthInSeconds * 2 * _sampleRate).toInt();
+    late int lengthInBytes;
+
+    if (lengthInSeconds == null) {
+      lengthInBytes = _data.length - start;
+    } else {
+      lengthInBytes = (lengthInSeconds! * 2 * _sampleRate).toInt();
+    }
     if (start + lengthInBytes > _data.length) {
       throw Exception(
           "Requested offset/length would exceed the size of the audio buffer");

@@ -27,26 +27,31 @@ class SherpaOnnxIsolate {
 
   SherpaOnnxIsolate(this._setupPort, this._createdRecognizerPort,
       this._createdStreamPort, this._resultPort) {
-    var dataPort = ReceivePort();
+    var waveformStreamPort = ReceivePort();
+    var decodeWaveformPort = ReceivePort();
     var createRecognizerPort = ReceivePort();
     var createStreamPort = ReceivePort();
     var killRecognizerPort = ReceivePort();
+    var destroyStreamPort = ReceivePort();
 
     var shutdownPort = ReceivePort();
 
     _setupPort.send([
-      dataPort.sendPort,
+      waveformStreamPort.sendPort,
+      decodeWaveformPort.sendPort,
       createRecognizerPort.sendPort,
       killRecognizerPort.sendPort,
       createStreamPort.sendPort,
+      destroyStreamPort.sendPort,
       shutdownPort.sendPort,
     ]);
 
     createRecognizerPort.listen(_onCreateRecognizerCommandReceived);
     killRecognizerPort.listen(_onKillRecognizerCommandReceived);
     createStreamPort.listen(_onCreateStreamCommandReceived);
-
-    dataPort.listen(_onWaveformDataReceived);
+    destroyStreamPort.listen(_onDestroyStreamCommandReceived);
+    waveformStreamPort.listen(_onWaveformDataReceived);
+    decodeWaveformPort.listen(_onDecodeWaveform);
 
     shutdownPort.listen((message) {
       if (message) {
@@ -165,6 +170,36 @@ class SherpaOnnxIsolate {
     _createdStreamPort.send(_stream != nullptr);
   }
 
+  void _onDecodeWaveform(dynamic data) async {
+    final shortData =
+        (data as Uint8List).buffer.asInt16List(data.offsetInBytes);
+
+    var floatPtr = calloc<Float>(shortData.length);
+    for (int i = 0; i < shortData.length; i++) {
+      floatPtr[i] = shortData[i] / 32768;
+    }
+    AcceptWaveform(_stream!, _sampleRate!, floatPtr, shortData.length);
+
+    while (IsOnlineStreamReady(_recognizer!, _stream!) == 1) {
+      DecodeOnlineStream(_recognizer!, _stream!);
+    }
+
+    var result = GetOnlineStreamResult(_recognizer!, _stream!);
+
+    var isEndpoint = IsEndpoint(_recognizer!, _stream!) == 1;
+
+    if (result != nullptr) {
+      if (result.ref.json != nullptr) {
+        var dartString = result.ref.json.cast<Utf8>().toDartString();
+        _resultPort.send(
+            "${dartString.substring(0, dartString.length - 1)}, \"is_endpoint\":$isEndpoint}");
+      }
+    } else {
+      _resultPort.send(null);
+    }
+    DestroyOnlineRecognizerResult(result);
+  }
+
   void _onWaveformDataReceived(dynamic data) async {
     _buffer!.write(data as Uint8List);
 
@@ -193,6 +228,13 @@ class SherpaOnnxIsolate {
 
     if (isEndpoint) {
       Reset(_recognizer!, _stream!);
+    }
+  }
+
+  void _onDestroyStreamCommandReceived(_) {
+    if (_stream != null) {
+      DestroyOnlineStream(_stream!);
+      _stream = null;
     }
   }
 
