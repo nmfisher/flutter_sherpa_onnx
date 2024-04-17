@@ -185,8 +185,8 @@ class SherpaOnnxIsolate {
     if (result != nullptr) {
       if (result.ref.json != nullptr) {
         var dartString = result.ref.json.cast<Utf8>().toDartString();
-        _resultPort.send(dartString.substring(0, dartString.length - 1) +
-            ", \"is_endpoint\":$isEndpoint}");
+        _resultPort.send(
+            "${dartString.substring(0, dartString.length - 1)}, \"is_endpoint\":$isEndpoint}");
       }
       DestroyOnlineRecognizerResult(result);
     }

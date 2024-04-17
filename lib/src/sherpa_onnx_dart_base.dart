@@ -78,25 +78,19 @@ class SherpaOnnx {
 
   void _onResult(dynamic result) {
     var resultMap = json.decode(result);
-
     bool isFinal = resultMap["is_endpoint"] == true;
 
-    if (isFinal) {
-      if (resultMap["text"].isNotEmpty) {
-        var numTokens = resultMap["tokens"].length;
-        var words = <WordTranscription>[];
-        for (int i = 0; i < numTokens; i++) {
-          words.add(WordTranscription(
-              resultMap["tokens"][i], resultMap["timestamps"][i], -1));
-        }
-        _resultController.add(ASRResult(isFinal, words));
-      }
-    } else {
-      if (resultMap["text"].isNotEmpty) {
-        _resultController.add(ASRResult(
-            isFinal, [WordTranscription(resultMap["text"], null, null)]));
-      }
+    var numTokens = resultMap["tokens"].length;
+    var words = <WordTranscription>[];
+    for (int i = 0; i < numTokens; i++) {
+      words.add(WordTranscription(
+          resultMap["tokens"][i],
+          resultMap["start_time"] + resultMap["timestamps"][i],
+          i == numTokens - 1
+              ? null
+              : resultMap["start_time"] + resultMap["timestamps"][i + 1]));
     }
+    _resultController.add(ASRResult(isFinal, words));
   }
 
   Future decodeBuffer() async {
@@ -169,6 +163,8 @@ class SherpaOnnx {
 
   void acceptWaveform(Uint8List data) async {
     if (_killed) {
+      print(
+          "Warning - recognizer has been destroyed, this data will be ignored");
       return;
     }
     _dataPort.send(data);
