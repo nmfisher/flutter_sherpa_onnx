@@ -156,11 +156,9 @@ class SherpaOnnx {
   }
 
   Future destroyStream() async {
-    print("Destroying stream");
     _destroyStreamPort.send(true);
     await Future.delayed(Duration.zero);
     _hasStream = false;
-    print("hasStream $_hasStream ");
   }
 
   Future destroyRecognizer() async {
@@ -193,6 +191,8 @@ class SherpaOnnx {
     _decodeWaveformPort.send(data);
     await completer.future;
     resultListener.cancel();
+    await destroyStream();
+
     return completer.future;
   }
 
