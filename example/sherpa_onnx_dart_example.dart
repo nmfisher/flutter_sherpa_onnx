@@ -1,5 +1,7 @@
+import 'dart:ffi';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:sherpa_onnx_dart/sherpa_onnx_dart.dart';
 
@@ -20,17 +22,42 @@ void main() async {
   await sherpaOnnx.createStream(null);
 
   var data = File("$scriptDir/test.pcm").readAsBytesSync();
+  var sampleRate = 16000;
 
-  var results = <String>[];
+  var results = <ASRResult>[];
+  var audioBuffer = AudioBuffer(sampleRate);
   sherpaOnnx.result.listen((ASRResult asrResult) {
-    results.add(asrResult.words.map((w) => w.word).join(" "));
+    results.add(asrResult);
   });
   for (int i = 0; i < data.length; i += 1024) {
-    sherpaOnnx.acceptWaveform(data.sublist(i, min(data.length, i + 1024)));
+    var segment = data.sublist(i, min(data.length, i + 1024));
+    sherpaOnnx.acceptWaveform(segment);
+    audioBuffer.add(segment);
   }
+
+  // add two seconds of trailing silence
+
+  var silence = Uint8List(32000);
+  sherpaOnnx.acceptWaveform(silence);
+  audioBuffer.add(silence);
+
   // this can take some time if we're running on a crappy device, so let's give it a chance to breathe
   await Future.delayed(Duration(milliseconds: 5000));
+
   //"你的妈妈叫什么名字"
-  print(results.last);
+  print(results.last.words
+      .map((w) => "${w.start}:${w.end} ${w.word}")
+      .join("\n"));
+
   await sherpaOnnx.dispose();
+
+  int i = 0;
+  for (final word in results.last.words) {
+    print("Getting segment ${word.start}->${word.end}");
+    var segment = audioBuffer.getSegment(word.start!, word.end! - word.start!);
+    var outfile = File("/tmp/segment_$i.pcm");
+    outfile.writeAsBytesSync(segment);
+    print("Wrote to ${outfile.path}");
+    i += 1;
+  }
 }
