@@ -1,7 +1,6 @@
 name: sherpa_onnx_dart
-description: A starting point for Dart libraries or applications.
+description: A Dart package wrapping the sherpa-onnx speech recognition library.
 version: 1.0.0
-# repository: https://github.com/my_org/my_repo
 
 environment:
   sdk: ^3.5.0-47.0.dev
