@@ -1,0 +1,12 @@
+*.a filter=lfs diff=lfs merge=lfs -text
+example/assets/asr/decoder-epoch-12-avg-4-chunk-16-left-128.int8.onnx filter=lfs diff=lfs merge=lfs -text
+example/assets/asr/encoder-epoch-12-avg-4-chunk-16-left-128.int8.onnx filter=lfs diff=lfs merge=lfs -text
+example/assets/asr/joiner-epoch-12-avg-4-chunk-16-left-128.int8.onnx filter=lfs diff=lfs merge=lfs -text
+example/assets/asr/tokens.txt filter=lfs diff=lfs merge=lfs -text
+example/assets/test.wav filter=lfs diff=lfs merge=lfs -text
+example/assets/asr filter=lfs diff=lfs merge=lfs -text
+ios/lib/libsherpa-onnx.a filter=lfs diff=lfs merge=lfs -text
+android/src/main/jniLibs/arm64-v8a filter=lfs diff=lfs merge=lfs -text
+example/android/app/src/main/jniLibs/arm64-v8a/libcustom_op_library.so filter=lfs diff=lfs merge=lfs -text
+example/android/app/src/main/jniLibs/arm64-v8a/libonnxruntime.so filter=lfs diff=lfs merge=lfs -text
+example/android/app/src/main/jniLibs/arm64-v8a filter=lfs diff=lfs merge=lfs -text

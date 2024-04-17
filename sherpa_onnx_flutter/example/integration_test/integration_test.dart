@@ -10,7 +10,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   group('Recognizer tests', () {
     testWidgets('successfully recognize from a file', (tester) async {
-      var plugin = FlutterSherpaOnnxFFI();
+      var plugin = SherpaOnnx();
       await plugin.createRecognizer(
           16000,
           0.1,

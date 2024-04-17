@@ -1,24 +1,18 @@
 import 'dart:ffi';
-import 'dart:io';
 import 'dart:isolate';
-import 'dart:math';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
-import 'package:flutter_sherpa_onnx/ring_buffer.dart';
 
 import 'package:path/path.dart' as p;
+import 'package:sherpa_onnx_dart/src/ring_buffer.dart';
+import 'package:sherpa_onnx_dart/src/sherpa_onnx_dart.g.dart';
 
-import './generated_bindings.dart';
-import 'package:flutter/services.dart';
-
-class FlutterSherpaOnnxFFIIsolateRunner {
+class SherpaOnnxIsolate {
   final SendPort _setupPort;
 
   final SendPort _createdRecognizerPort;
   final SendPort _createdStreamPort;
   final SendPort _resultPort;
-
-  late final NativeLibrary _lib;
 
   RingBuffer? _buffer;
 
@@ -31,8 +25,8 @@ class FlutterSherpaOnnxFFIIsolateRunner {
 
   Pointer<SherpaOnnxOnlineRecognizerConfig>? _config;
 
-  FlutterSherpaOnnxFFIIsolateRunner(this._setupPort,
-      this._createdRecognizerPort, this._createdStreamPort, this._resultPort) {
+  SherpaOnnxIsolate(this._setupPort, this._createdRecognizerPort,
+      this._createdStreamPort, this._resultPort) {
     var dataPort = ReceivePort();
     var createRecognizerPort = ReceivePort();
     var createStreamPort = ReceivePort();
@@ -62,16 +56,6 @@ class FlutterSherpaOnnxFFIIsolateRunner {
         Isolate.current.kill();
       }
     });
-    if (Platform.isAndroid || Platform.isLinux) {
-      _lib = NativeLibrary(
-          DynamicLibrary.open("libflutter_sherpa_onnx_plugin.so"));
-    } else if (Platform.isWindows) {
-      var path = p.join(File(Platform.resolvedExecutable).parent.path,
-          "sherpa-onnx-c-api.dll");
-      _lib = NativeLibrary(DynamicLibrary.open(path));
-    } else {
-      _lib = NativeLibrary(DynamicLibrary.process());
-    }
   }
 
   int? _sampleRate;
@@ -151,7 +135,7 @@ class FlutterSherpaOnnxFFIIsolateRunner {
     _config!.ref.hotwords_file = hotwords.toNativeUtf8().cast<Char>();
     _config!.ref.hotwords_score = hotwordsScore;
 
-    _recognizer = _lib.CreateOnlineRecognizer(_config!);
+    _recognizer = CreateOnlineRecognizer(_config!);
 
     _createdRecognizerPort.send(_recognizer != nullptr);
   }
@@ -166,24 +150,20 @@ class FlutterSherpaOnnxFFIIsolateRunner {
       _createdStreamPort.send(false);
       return;
     }
-    _readPointer = 0;
-    _writePointer = 0;
+
     if (_stream != null) {
-      _lib.DestroyOnlineStream(_stream!);
+      DestroyOnlineStream(_stream!);
     }
     if (hotwords == null) {
-      _stream = _lib.CreateOnlineStream(_recognizer!);
+      _stream = CreateOnlineStream(_recognizer!);
     } else {
       String hotwordsString = hotwords as String;
-      _stream = _lib.CreateOnlineStreamWithHotwords(
+      _stream = CreateOnlineStreamWithHotwords(
           _recognizer!, hotwordsString.toNativeUtf8().cast<Char>());
     }
-    _lib.Reset(_recognizer!, _stream!);
+    Reset(_recognizer!, _stream!);
     _createdStreamPort.send(_stream != nullptr);
   }
-
-  int _readPointer = 0;
-  int _writePointer = 0;
 
   void _onWaveformDataReceived(dynamic data) async {
     _buffer!.write(data as Uint8List);
@@ -193,15 +173,14 @@ class FlutterSherpaOnnxFFIIsolateRunner {
     }
     var floatPtr = _buffer!.read();
 
-    _lib.AcceptWaveform(
-        _stream!, _sampleRate!, floatPtr, _chunkLengthInSamples);
+    AcceptWaveform(_stream!, _sampleRate!, floatPtr, _chunkLengthInSamples);
 
-    while (_lib.IsOnlineStreamReady(_recognizer!, _stream!) == 1) {
-      _lib.DecodeOnlineStream(_recognizer!, _stream!);
+    while (IsOnlineStreamReady(_recognizer!, _stream!) == 1) {
+      DecodeOnlineStream(_recognizer!, _stream!);
     }
 
-    var result = _lib.GetOnlineStreamResult(_recognizer!, _stream!);
-    var isEndpoint = _lib.IsEndpoint(_recognizer!, _stream!) == 1;
+    var result = GetOnlineStreamResult(_recognizer!, _stream!);
+    var isEndpoint = IsEndpoint(_recognizer!, _stream!) == 1;
 
     if (result != nullptr) {
       if (result.ref.json != nullptr) {
@@ -209,33 +188,32 @@ class FlutterSherpaOnnxFFIIsolateRunner {
         _resultPort.send(dartString.substring(0, dartString.length - 1) +
             ", \"is_endpoint\":$isEndpoint}");
       }
-      _lib.DestroyOnlineRecognizerResult(result);
+      DestroyOnlineRecognizerResult(result);
     }
 
     if (isEndpoint) {
-      _lib.Reset(_recognizer!, _stream!);
+      Reset(_recognizer!, _stream!);
     }
   }
 
   void _onKillRecognizerCommandReceived(_) {
     if (_stream != null) {
-      _lib.DestroyOnlineStream(_stream!);
+      DestroyOnlineStream(_stream!);
     }
     if (_recognizer != null) {
-      _lib.DestroyOnlineRecognizer(_recognizer!);
+      DestroyOnlineRecognizer(_recognizer!);
     }
     _stream = null;
     _recognizer = null;
   }
 
+  static SherpaOnnxIsolate? current;
   static void create(List args) {
     SendPort setupPort = args[0];
     SendPort createdRecognizerPort = args[1];
     SendPort createdStreamPort = args[2];
     SendPort resultPort = args[3];
-    BackgroundIsolateBinaryMessenger.ensureInitialized(
-        args[4] as RootIsolateToken);
-    var runner = FlutterSherpaOnnxFFIIsolateRunner(
+    current = SherpaOnnxIsolate(
         setupPort, createdRecognizerPort, createdStreamPort, resultPort);
   }
 }

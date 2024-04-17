@@ -1,0 +1,16 @@
+assets/asr/encoder-epoch-99-avg-1.int8.required_operators.config filter=lfs diff=lfs merge=lfs -text
+assets/asr/joiner-epoch-99-avg-1.int8.onnx filter=lfs diff=lfs merge=lfs -text
+assets/asr/decoder-epoch-99-avg-1.int8.ort filter=lfs diff=lfs merge=lfs -text
+assets/asr/decoder-epoch-99-avg-1.int8.required_operators.with_runtime_opt.config filter=lfs diff=lfs merge=lfs -text
+assets/asr/decoder-epoch-99-avg-1.int8.with_runtime_opt.ort filter=lfs diff=lfs merge=lfs -text
+assets/asr/encoder-epoch-99-avg-1.int8.onnx filter=lfs diff=lfs merge=lfs -text
+assets/asr/decoder-epoch-99-avg-1.int8.onnx filter=lfs diff=lfs merge=lfs -text
+assets/asr/joiner-epoch-99-avg-1.int8.ort filter=lfs diff=lfs merge=lfs -text
+assets/asr/joiner-epoch-99-avg-1.int8.required_operators.with_runtime_opt.config filter=lfs diff=lfs merge=lfs -text
+assets/asr/tokens.txt filter=lfs diff=lfs merge=lfs -text
+assets/asr/encoder-epoch-99-avg-1.int8.ort filter=lfs diff=lfs merge=lfs -text
+assets/asr/encoder-epoch-99-avg-1.int8.required_operators.with_runtime_opt.config filter=lfs diff=lfs merge=lfs -text
+assets/asr/encoder-epoch-99-avg-1.int8.with_runtime_opt.ort filter=lfs diff=lfs merge=lfs -text
+assets/asr/joiner-epoch-99-avg-1.int8.required_operators.config filter=lfs diff=lfs merge=lfs -text
+assets/asr/decoder-epoch-99-avg-1.int8.required_operators.config filter=lfs diff=lfs merge=lfs -text
+assets/asr/joiner-epoch-99-avg-1.int8.with_runtime_opt.ort filter=lfs diff=lfs merge=lfs -text

@@ -25,11 +25,6 @@ dev_dependencies:
   flutter_lints: ^1.0.0
   ffigen: 
   
-ffigen:
-  output: 'lib/generated_bindings.dart'
-  headers:
-    entry-points:
-      - 'ios/include/c-api.h'
 
 flutter:
   plugin:

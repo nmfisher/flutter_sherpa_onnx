@@ -1,37 +1,34 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
-import 'package:flutter_sherpa_onnx/flutter_sherpa_onnx_ffi_isolate.dart';
-import 'package:flutter_ffi_asset_helper/flutter_ffi_asset_helper.dart';
-import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:sherpa_onnx_dart/src/sherpa_onnx_isolate.dart';
+import 'package:sherpa_onnx_dart/src/word_transcription.dart';
 
-class WordTranscription {
-  final String word;
-  final double? start;
-  final double? end;
-
-  WordTranscription(this.word, this.start, this.end);
-}
-
-class ASRResult {
-  final bool isFinal;
-  final List<WordTranscription> words;
-
-  ASRResult(this.isFinal, this.words);
-}
-
-class FlutterSherpaOnnxFFI {
+///
+/// An interface for creating/using/destroying a sherpa-onnx Recognizer/Stream
+/// that runs on a background isolate.
+/// Calling the constructor only sets up the background isolate; you will need
+/// to call [createRecognizer], [createStream], then [acceptWaveform] to start
+/// processing audio data.
+///
+class SherpaOnnx {
   Stream<ASRResult> get result => _resultController.stream;
   final _resultController = StreamController<ASRResult>.broadcast();
 
-  Isolate? _runner;
+  Future<Isolate>? _runner;
+
+  Future<bool> get ready async {
+    if (_runner == null) {
+      return false;
+    }
+    await _runner;
+    return true;
+  }
 
   final _createdRecognizerPort = ReceivePort();
-  late Stream _createdRecognizerPortStream =
+  late final Stream _createdRecognizerPortStream =
       _createdRecognizerPort.asBroadcastStream();
   final _createdStreamPort = ReceivePort();
   Completer? _createdStream;
@@ -47,13 +44,11 @@ class FlutterSherpaOnnxFFI {
   late SendPort _shutdownPort;
   final _isolateSetupComplete = Completer();
 
-  final FlutterFfiAssetHelper _helper = FlutterFfiAssetHelper();
-
   late final StreamSubscription _setupListener;
   late final StreamSubscription _resultListener;
   late final StreamSubscription _createdStreamListener;
 
-  FlutterSherpaOnnxFFI() {
+  SherpaOnnx() {
     _setupListener = _setupPort.listen((msg) {
       _dataPort = msg[0];
       _createRecognizerPort = msg[1];
@@ -73,15 +68,12 @@ class FlutterSherpaOnnxFFI {
       }
     });
 
-    Isolate.spawn(FlutterSherpaOnnxFFIIsolateRunner.create, [
+    _runner = Isolate.spawn(SherpaOnnxIsolate.create, [
       _setupPort.sendPort,
       _createdRecognizerPort.sendPort,
       _createdStreamPort.sendPort,
-      _resultPort.sendPort,
-      ServicesBinding.rootIsolateToken
-    ]).then((isolate) {
-      _runner = isolate;
-    });
+      _resultPort.sendPort
+    ]);
   }
 
   void _onResult(dynamic result) {
@@ -113,14 +105,16 @@ class FlutterSherpaOnnxFFI {
 
   bool _hasRecognizer = false;
 
-  Future createRecognizer(
-      double sampleRate,
-      double chunkLengthInSecs,
-      String tokensAssetPath,
-      String encoderAssetPath,
-      String decoderAssetPath,
-      String joinerAssetPath,
-      {double hotwordsScore = 20.0}) async {
+  ///
+  /// Creates a recognizer using the tokens, encoder, decoder and joiner at the specified paths.
+  /// [sampleRate] is the sample rate of the PCM-encoded data that will be passed into [acceptWaveform].
+  /// When [acceptWaveform] is called, the audio data is not directly passed to the recognizer.
+  /// Rather, we buffer the incoming data until [chunkLengthInSecs] is available, and then pass that chunk the recognizer.
+  /// Use this parameter to increase/decrease the frequency with which the recognizer attempts to decode the stream.
+  ///
+  Future createRecognizer(double sampleRate, String tokensFilePath,
+      String encoderFilePath, String decoderFilePath, String joinerFilePath,
+      {double chunkLengthInSecs = 0.25, double hotwordsScore = 20.0}) async {
     await _isolateSetupComplete.future;
     final completer = Completer<bool>();
     late StreamSubscription listener;
@@ -128,11 +122,6 @@ class FlutterSherpaOnnxFFI {
       completer.complete(success);
       listener.cancel();
     });
-
-    var tokensFilePath = await _helper.assetToFilepath(tokensAssetPath);
-    var encoderFilePath = await _helper.assetToFilepath(encoderAssetPath);
-    var decoderFilePath = await _helper.assetToFilepath(decoderAssetPath);
-    var joinerFilePath = await _helper.assetToFilepath(joinerAssetPath);
 
     _createRecognizerPort.send([
       sampleRate,
@@ -186,6 +175,12 @@ class FlutterSherpaOnnxFFI {
   }
 
   Future dispose() async {
+    (await _runner)?.kill();
+    await _setupListener.cancel();
+    await _resultListener.cancel();
+    await _createdStreamListener.cancel();
     _shutdownPort.send(true);
+    _createdRecognizerPort.close();
+    _createdStreamPort.close();
   }
 }

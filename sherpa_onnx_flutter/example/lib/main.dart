@@ -33,11 +33,11 @@ class MyAppState extends State<MyApp> {
   String? _decoded;
   late double microphoneSampleRate;
 
-  late FlutterSherpaOnnxFFI plugin;
+  late SherpaOnnx plugin;
 
   @override
   void initState() {
-    plugin = FlutterSherpaOnnxFFI();
+    plugin = SherpaOnnx();
     plugin.result.listen((result) {
       var string = _partial = result.words.map((w) => w.word).join("");
       if (result.isFinal) {
