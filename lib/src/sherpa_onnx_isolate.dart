@@ -1,39 +1,226 @@
-import 'dart:ffi';
+import 'dart:async';
+
 import 'dart:isolate';
 import 'dart:typed_data';
-import 'package:ffi/ffi.dart';
 
-import 'package:path/path.dart' as p;
-import 'package:sherpa_onnx_dart/src/ring_buffer.dart';
-import 'package:sherpa_onnx_dart/src/sherpa_onnx_dart.g.dart';
+import 'package:sherpa_onnx_dart/src/sherpa_onnx_recognizer.dart';
+import 'package:sherpa_onnx_dart/src/sherpa_onnx_recognizer_impl.dart';
 
-class SherpaOnnxIsolate {
+class SherpaOnnxIsolate extends SherpaOnnxRecognizer {
+  final _resultController = StreamController<String?>.broadcast();
+  Stream<String?> get result => _resultController.stream;
+
+  final _createdRecognizerPort = ReceivePort();
+  late final Stream _createdRecognizerPortStream =
+      _createdRecognizerPort.asBroadcastStream();
+  bool _hasRecognizer = false;
+
+  final _createdStreamPort = ReceivePort();
+  Completer? _createdStream;
+  bool _hasStream = false;
+
+  final _setupPort = ReceivePort();
+  bool _killed = false;
+  final _resultPort = ReceivePort();
+  final _spectrumPort = ReceivePort();
+  @override
+  Stream<Float64List?> get spectrum =>
+      _spectrumPort.map((s) => s as Float64List);
+
+  Future<bool> get ready async {
+    if (_runner == null) {
+      return false;
+    }
+    await _runner;
+    return true;
+  }
+
+  late SendPort _waveformStreamPort;
+  late SendPort _decodeWaveformPort;
+  late SendPort _createRecognizerPort;
+  late SendPort _killRecognizerPort;
+  late SendPort _createStreamPort;
+  late SendPort _destroyStreamPort;
+  late SendPort _shutdownPort;
+  final _isolateSetupComplete = Completer();
+
+  late final StreamSubscription _setupListener;
+  late final StreamSubscription _resultListener;
+  late final StreamSubscription _createdStreamListener;
+
+  late Future<Isolate>? _runner;
+
+  SherpaOnnxIsolate() {
+    _setupListener = _setupPort.listen((msg) {
+      _waveformStreamPort = msg[0];
+      _decodeWaveformPort = msg[1];
+      _createRecognizerPort = msg[2];
+      _killRecognizerPort = msg[3];
+      _createStreamPort = msg[4];
+      _destroyStreamPort = msg[5];
+      _shutdownPort = msg[6];
+      _isolateSetupComplete.complete(true);
+    });
+
+    _resultListener = _resultPort.listen(_onResult);
+
+    _createdStreamListener = _createdStreamPort.listen((success) {
+      try {
+        _createdStream!.complete(success as bool);
+      } catch (err) {
+        print(err);
+      }
+    });
+
+    _runner = Isolate.spawn(SherpaOnnxIsolateRunner.create, [
+      _setupPort.sendPort,
+      _createdRecognizerPort.sendPort,
+      _createdStreamPort.sendPort,
+      _resultPort.sendPort,
+      _spectrumPort.sendPort
+    ]);
+  }
+
+  void _onResult(dynamic result) {
+    if (result == null) {
+      return;
+    }
+    _resultController.sink.add(result as String);
+  }
+
+  bool isReadyForInput() {
+    return _runner != null && _hasRecognizer && _hasStream;
+  }
+
+  @override
+  Future<bool> createRecognizer(
+      {required double sampleRate,
+      required double chunkLengthInSecs,
+      required String tokensPath,
+      required String encoderPath,
+      required String decoderPath,
+      required String joinerPath,
+      required double hotwordsScore,
+      int? bufferLengthInSamples}) async {
+    await _isolateSetupComplete.future;
+    final completer = Completer<bool>();
+    late StreamSubscription listener;
+    listener = _createdRecognizerPortStream.listen((success) {
+      completer.complete(success);
+      listener.cancel();
+    });
+
+    _createRecognizerPort.send([
+      sampleRate,
+      chunkLengthInSecs,
+      tokensPath,
+      encoderPath,
+      decoderPath,
+      joinerPath,
+      hotwordsScore,
+      bufferLengthInSamples
+    ]);
+
+    var result = await completer.future;
+    _hasRecognizer = true;
+    return result;
+  }
+
+  @override
+  Future<bool> createStream(String? hotwords) async {
+    if (_createdStream != null) {
+      throw Exception("A request to create a stream is already pending.");
+    }
+    _createdStream = Completer();
+    _createStreamPort.send(hotwords ?? "");
+    var result = await _createdStream!.future;
+    if (result) {
+      _killed = false;
+    } else {
+      throw Exception("Failed to create stream. Is a recognizer available?");
+    }
+    _createdStream = null;
+    _hasStream = true;
+    return result;
+  }
+
+  @override
+  Future destroyStream() async {
+    _destroyStreamPort.send(true);
+    await Future.delayed(Duration.zero);
+    _hasStream = false;
+  }
+
+  @override
+  Future destroyRecognizer() async {
+    if (_hasRecognizer) {
+      _killRecognizerPort.send(true);
+      _killed = true;
+    }
+    _hasRecognizer = false;
+  }
+
+  @override
+  void acceptWaveform(Uint8List data) async {
+    if (_killed) {
+      print(
+          "Warning - recognizer has been destroyed, this data will be ignored");
+      return;
+    }
+    _waveformStreamPort.send(data);
+  }
+
+  @override
+  Future<String?> decodeWaveform(Uint8List data) async {
+    if (_hasStream) {
+      throw Exception("Stream already exists. Call [destroyStream] first");
+    }
+    final completer = Completer<String>();
+
+    await createStream(null);
+    var resultListener = result.listen((result) {
+      completer.complete(result);
+    });
+    _decodeWaveformPort.send(data);
+    await completer.future;
+    resultListener.cancel();
+    await destroyStream();
+
+    return completer.future;
+  }
+
+  @override
+  Future dispose() async {
+    (await _runner)?.kill();
+    await _setupListener.cancel();
+    await _resultListener.cancel();
+    await _createdStreamListener.cancel();
+    _shutdownPort.send(true);
+    _createdRecognizerPort.close();
+    _createdStreamPort.close();
+    _resultPort.close();
+    _spectrumPort.close();
+  }
+}
+
+class SherpaOnnxIsolateRunner {
   final SendPort _setupPort;
 
   final SendPort _createdRecognizerPort;
   final SendPort _createdStreamPort;
   final SendPort _resultPort;
+  final SendPort _spectrumPort;
 
-  RingBuffer? _buffer;
+  SherpaOnnxRecognizerImpl? _recognizer;
 
-  int _CHUNK_LENGTH_MULTIPLE_FOR_BUFFER = 10;
-
-  Pointer<SherpaOnnxOnlineRecognizer>? _recognizer;
-  Pointer<SherpaOnnxOnlineStream>? _stream;
-
-  int _chunkLengthInSamples = 0;
-
-  Pointer<SherpaOnnxOnlineRecognizerConfig>? _config;
-
-  SherpaOnnxIsolate(this._setupPort, this._createdRecognizerPort,
-      this._createdStreamPort, this._resultPort) {
+  SherpaOnnxIsolateRunner(this._setupPort, this._createdRecognizerPort,
+      this._createdStreamPort, this._resultPort, this._spectrumPort) {
     var waveformStreamPort = ReceivePort();
     var decodeWaveformPort = ReceivePort();
     var createRecognizerPort = ReceivePort();
     var createStreamPort = ReceivePort();
     var killRecognizerPort = ReceivePort();
     var destroyStreamPort = ReceivePort();
-
     var shutdownPort = ReceivePort();
 
     _setupPort.send([
@@ -57,96 +244,40 @@ class SherpaOnnxIsolate {
       if (message) {
         _onKillRecognizerCommandReceived(null);
 
-        _buffer?.dispose();
         Isolate.current.kill();
       }
     });
+    _recognizer = SherpaOnnxRecognizerImpl();
+
+    _recognizer!.result.listen(_resultPort.send);
   }
 
-  int? _sampleRate;
   void _onCreateRecognizerCommandReceived(dynamic args) async {
-    if (_recognizer != null) {
-      throw Exception(
-          "Recognizer already exists, make sure to call kill first.");
-    }
-
     var sampleRate = args[0] as double;
-    _sampleRate = sampleRate.toInt();
 
     var chunkLengthInSecs = args[1] as double;
-    print(
-        "Creating recognizer with sampleRate $sampleRate/chunkLengthInSecs $chunkLengthInSecs  ");
+
     String tokensPath = args[2];
     String encoderPath = args[3];
     String decoderPath = args[4];
     String joinerPath = args[5];
     var hotwordsScore = args[6] as double;
+    var bufferLengthInSamples = args[7];
 
-    var newChunkLengthInSamples = (chunkLengthInSecs * sampleRate);
+    print(
+        "Creating recognizer with sampleRate $sampleRate, chunkLengthInSecs $chunkLengthInSecs, _bufferLengthInSamples $bufferLengthInSamples  ");
 
-    if (newChunkLengthInSamples != _chunkLengthInSamples) {
-      _chunkLengthInSamples = newChunkLengthInSamples.toInt();
+    var result = _recognizer!.createRecognizer(
+        sampleRate: sampleRate,
+        chunkLengthInSecs: chunkLengthInSecs,
+        tokensPath: tokensPath,
+        encoderPath: encoderPath,
+        decoderPath: decoderPath,
+        joinerPath: joinerPath,
+        hotwordsScore: hotwordsScore,
+        bufferLengthInSamples: bufferLengthInSamples);
 
-      _buffer?.dispose();
-
-      // when [_onWaveformDataReceived] is called, we will wait until at least [_chunkLengthInSamples] samples are available before passing to the decoder
-      // this means each call will write [bufferSizeInSamples] samples to a temporary storage buffer
-      // this buffer must be large enough to avoid read/write under/overflow (i.e. so we can write ahead of the current read position).
-      // reads will be some multiple of _chunkLengthInSamples
-      // write sizes will be variable on certain platforms (e.g. Windows) as these do not have a fixed hardware buffer size
-      // we therefore size our RingBuffer to some multiple of _chunkLengthInSamples
-      _buffer = RingBuffer(
-          readSizeInSamples: _chunkLengthInSamples,
-          lengthInBytes: _chunkLengthInSamples *
-              _CHUNK_LENGTH_MULTIPLE_FOR_BUFFER *
-              sizeOf<Int16>());
-    }
-
-    print("Using chunk length in samples : $_chunkLengthInSamples ");
-
-    _config = calloc<SherpaOnnxOnlineRecognizerConfig>();
-
-    _config!.ref.model_config.debug = 1;
-    _config!.ref.model_config.num_threads = 1;
-    var provider = "cpu";
-    // var decodingMethod = "greedy_search";
-    var decodingMethod = "modified_beam_search";
-    _config!.ref.model_config.provider = provider.toNativeUtf8().cast<Char>();
-
-    _config!.ref.decoding_method = decodingMethod.toNativeUtf8().cast<Char>();
-
-    _config!.ref.max_active_paths = 4;
-
-    _config!.ref.feat_config.sample_rate = 16000;
-    _config!.ref.feat_config.feature_dim = 80;
-
-    _config!.ref.enable_endpoint = 1;
-    _config!.ref.rule1_min_trailing_silence = 2.4;
-    _config!.ref.rule2_min_trailing_silence = 1.2;
-    _config!.ref.rule3_min_utterance_length = 300;
-
-    _config!.ref.model_config.model_type = nullptr;
-    _config!.ref.model_config.tokens = tokensPath.toNativeUtf8().cast<Char>();
-    _config!.ref.model_config.paraformer.encoder = nullptr;
-    _config!.ref.model_config.paraformer.decoder = nullptr;
-    _config!.ref.model_config.transducer.encoder =
-        encoderPath.toNativeUtf8().cast<Char>();
-    _config!.ref.model_config.transducer.decoder =
-        decoderPath.toNativeUtf8().cast<Char>();
-    _config!.ref.model_config.transducer.joiner =
-        joinerPath.toNativeUtf8().cast<Char>();
-
-    var hotwords = "";
-    _config!.ref.hotwords_file = hotwords.toNativeUtf8().cast<Char>();
-    _config!.ref.hotwords_score = hotwordsScore;
-
-    _recognizer = CreateOnlineRecognizer(_config!);
-
-    _createdRecognizerPort.send(_recognizer != nullptr);
-  }
-
-  bool isReadyForInput() {
-    return _recognizer != null && _stream != null && _sampleRate != null;
+    _createdRecognizerPort.send(result);
   }
 
   void _onCreateStreamCommandReceived(dynamic hotwords) {
@@ -156,106 +287,35 @@ class SherpaOnnxIsolate {
       return;
     }
 
-    if (_stream != null) {
-      DestroyOnlineStream(_stream!);
-    }
-    if (hotwords == null) {
-      _stream = CreateOnlineStream(_recognizer!);
-    } else {
-      String hotwordsString = hotwords as String;
-      _stream = CreateOnlineStreamWithHotwords(
-          _recognizer!, hotwordsString.toNativeUtf8().cast<Char>());
-    }
-    Reset(_recognizer!, _stream!);
-    _createdStreamPort.send(_stream != nullptr);
+    var created = _recognizer!.createStream(hotwords as String?);
+    _createdStreamPort.send(created);
   }
 
   void _onDecodeWaveform(dynamic data) async {
-    final shortData =
-        (data as Uint8List).buffer.asInt16List(data.offsetInBytes);
-
-    var floatPtr = calloc<Float>(shortData.length);
-    for (int i = 0; i < shortData.length; i++) {
-      floatPtr[i] = shortData[i] / 32768;
-    }
-    AcceptWaveform(_stream!, _sampleRate!, floatPtr, shortData.length);
-
-    while (IsOnlineStreamReady(_recognizer!, _stream!) == 1) {
-      DecodeOnlineStream(_recognizer!, _stream!);
-    }
-
-    var result = GetOnlineStreamResult(_recognizer!, _stream!);
-
-    var isEndpoint = IsEndpoint(_recognizer!, _stream!) == 1;
-
-    if (result != nullptr) {
-      if (result.ref.json != nullptr) {
-        var dartString = result.ref.json.cast<Utf8>().toDartString();
-        _resultPort.send(
-            "${dartString.substring(0, dartString.length - 1)}, \"is_endpoint\":$isEndpoint}");
-      }
-    } else {
-      _resultPort.send(null);
-    }
-    DestroyOnlineRecognizerResult(result);
+    var result = _recognizer!.decodeWaveform(data as Uint8List);
+    _resultPort.send(result);
   }
 
   void _onWaveformDataReceived(dynamic data) async {
-    _buffer!.write(data as Uint8List);
-
-    if (!_buffer!.canRead()) {
-      return;
-    }
-    var floatPtr = _buffer!.read();
-
-    AcceptWaveform(_stream!, _sampleRate!, floatPtr, _chunkLengthInSamples);
-
-    while (IsOnlineStreamReady(_recognizer!, _stream!) == 1) {
-      DecodeOnlineStream(_recognizer!, _stream!);
-    }
-
-    var result = GetOnlineStreamResult(_recognizer!, _stream!);
-    var isEndpoint = IsEndpoint(_recognizer!, _stream!) == 1;
-
-    if (result != nullptr) {
-      if (result.ref.json != nullptr) {
-        var dartString = result.ref.json.cast<Utf8>().toDartString();
-        _resultPort.send(
-            "${dartString.substring(0, dartString.length - 1)}, \"is_endpoint\":$isEndpoint}");
-      }
-      DestroyOnlineRecognizerResult(result);
-    }
-
-    if (isEndpoint) {
-      Reset(_recognizer!, _stream!);
-    }
+    _recognizer!.acceptWaveform(data as Uint8List);
   }
 
   void _onDestroyStreamCommandReceived(_) {
-    if (_stream != null) {
-      DestroyOnlineStream(_stream!);
-      _stream = null;
-    }
+    _recognizer!.destroyStream();
   }
 
   void _onKillRecognizerCommandReceived(_) {
-    if (_stream != null) {
-      DestroyOnlineStream(_stream!);
-    }
-    if (_recognizer != null) {
-      DestroyOnlineRecognizer(_recognizer!);
-    }
-    _stream = null;
-    _recognizer = null;
+    _recognizer!.destroyRecognizer();
   }
 
-  static SherpaOnnxIsolate? current;
+  static SherpaOnnxIsolateRunner? current;
   static void create(List args) {
     SendPort setupPort = args[0];
     SendPort createdRecognizerPort = args[1];
     SendPort createdStreamPort = args[2];
     SendPort resultPort = args[3];
-    current = SherpaOnnxIsolate(
-        setupPort, createdRecognizerPort, createdStreamPort, resultPort);
+    SendPort spectrumPort = args[4];
+    current = SherpaOnnxIsolateRunner(setupPort, createdRecognizerPort,
+        createdStreamPort, resultPort, spectrumPort);
   }
 }

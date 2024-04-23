@@ -5,7 +5,7 @@ import 'dart:typed_data';
 ///
 class AudioBuffer {
   late Uint8List _data;
-  int _sampleRate;
+  final int _sampleRate;
   int get sampleRate => _sampleRate;
 
   int _bytesWritten = 0;
@@ -13,6 +13,8 @@ class AudioBuffer {
   AudioBuffer(this._sampleRate, {int capacityInSeconds = 30}) {
     _data = Uint8List(_sampleRate * 2 * capacityInSeconds);
   }
+
+  AudioBuffer.fixed(this._data, this._sampleRate);
 
   void add(Uint8List data) {
     int added = 0;

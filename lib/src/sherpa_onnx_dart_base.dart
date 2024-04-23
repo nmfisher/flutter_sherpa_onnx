@@ -4,12 +4,13 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:sherpa_onnx_dart/src/sherpa_onnx_isolate.dart';
+import 'package:sherpa_onnx_dart/src/sherpa_onnx_recognizer.dart';
+import 'package:sherpa_onnx_dart/src/sherpa_onnx_recognizer_impl.dart';
 import 'package:sherpa_onnx_dart/src/word_transcription.dart';
 
 ///
-/// An interface for creating/using/destroying a sherpa-onnx Recognizer/Stream
-/// that runs on a background isolate.
-/// Calling the constructor only sets up the background isolate; you will need
+/// A Dart wrapper around a sherpa-onnx Recognizer/Stream
+/// Calling the constructor only sets up the wrapper; you will need
 /// to call [createRecognizer], [createStream], then [acceptWaveform] to start
 /// processing audio data.
 ///
@@ -17,73 +18,20 @@ class SherpaOnnx {
   Stream<ASRResult> get result => _resultController.stream;
   final _resultController = StreamController<ASRResult>.broadcast();
 
-  Future<Isolate>? _runner;
+  SherpaOnnxRecognizer? _recognizer;
 
-  Future<bool> get ready async {
-    if (_runner == null) {
-      return false;
-    }
-    await _runner;
-    return true;
+  Stream<Float64List?> get spectrum =>
+      _recognizer!.spectrum.cast<Float64List?>();
+
+  Future<bool> get ready => _recognizer!.ready;
+
+  SherpaOnnx({bool useIsolate = false}) {
+    _recognizer = useIsolate ? SherpaOnnxIsolate() : SherpaOnnxRecognizerImpl();
+
+    _recognizer!.result.listen(_onResult);
   }
 
-  final _createdRecognizerPort = ReceivePort();
-  late final Stream _createdRecognizerPortStream =
-      _createdRecognizerPort.asBroadcastStream();
-  bool _hasRecognizer = false;
-
-  final _createdStreamPort = ReceivePort();
-  Completer? _createdStream;
-  bool _hasStream = false;
-
-  final _setupPort = ReceivePort();
-  bool _killed = false;
-  final _resultPort = ReceivePort();
-
-  late SendPort _waveformStreamPort;
-  late SendPort _decodeWaveformPort;
-  late SendPort _createRecognizerPort;
-  late SendPort _killRecognizerPort;
-  late SendPort _createStreamPort;
-  late SendPort _destroyStreamPort;
-  late SendPort _shutdownPort;
-  final _isolateSetupComplete = Completer();
-
-  late final StreamSubscription _setupListener;
-  late final StreamSubscription _resultListener;
-  late final StreamSubscription _createdStreamListener;
-
-  SherpaOnnx() {
-    _setupListener = _setupPort.listen((msg) {
-      _waveformStreamPort = msg[0];
-      _decodeWaveformPort = msg[1];
-      _createRecognizerPort = msg[2];
-      _killRecognizerPort = msg[3];
-      _createStreamPort = msg[4];
-      _destroyStreamPort = msg[5];
-      _shutdownPort = msg[6];
-      _isolateSetupComplete.complete(true);
-    });
-
-    _resultListener = _resultPort.listen(_onResult);
-
-    _createdStreamListener = _createdStreamPort.listen((success) {
-      try {
-        _createdStream!.complete(success as bool);
-      } catch (err) {
-        print(err);
-      }
-    });
-
-    _runner = Isolate.spawn(SherpaOnnxIsolate.create, [
-      _setupPort.sendPort,
-      _createdRecognizerPort.sendPort,
-      _createdStreamPort.sendPort,
-      _resultPort.sendPort
-    ]);
-  }
-
-  void _onResult(dynamic result) {
+  ASRResult _decodeStringResult(String result) {
     var resultMap = json.decode(result);
     bool isFinal = resultMap["is_endpoint"] == true;
 
@@ -97,7 +45,15 @@ class SherpaOnnx {
               ? null
               : resultMap["start_time"] + resultMap["timestamps"][i + 1]));
     }
-    _resultController.add(ASRResult(isFinal, words));
+    return ASRResult(isFinal, words);
+  }
+
+  void _onResult(String? result) {
+    if (result == null) {
+      return;
+    }
+    var decoded = _decodeStringResult(result);
+    _resultController.add(decoded);
   }
 
   Future decodeBuffer() async {
@@ -111,98 +67,51 @@ class SherpaOnnx {
   /// Rather, we buffer the incoming data until [chunkLengthInSecs] is available, and then pass that chunk the recognizer.
   /// Use this parameter to increase/decrease the frequency with which the recognizer attempts to decode the stream.
   ///
-  Future createRecognizer(double sampleRate, String tokensFilePath,
+  Future<bool> createRecognizer(double sampleRate, String tokensFilePath,
       String encoderFilePath, String decoderFilePath, String joinerFilePath,
-      {double chunkLengthInSecs = 0.25, double hotwordsScore = 20.0}) async {
-    await _isolateSetupComplete.future;
-    final completer = Completer<bool>();
-    late StreamSubscription listener;
-    listener = _createdRecognizerPortStream.listen((success) {
-      completer.complete(success);
-      listener.cancel();
-    });
-
-    _createRecognizerPort.send([
-      sampleRate,
-      chunkLengthInSecs,
-      tokensFilePath,
-      encoderFilePath,
-      decoderFilePath,
-      joinerFilePath,
-      hotwordsScore
-    ]);
-
-    var result = await completer.future;
-    _hasRecognizer = true;
-    return result;
+      {double chunkLengthInSecs = 0.25,
+      double hotwordsScore = 20.0,
+      int? bufferLengthInSamples}) async {
+    return _recognizer!.createRecognizer(
+        sampleRate: sampleRate,
+        chunkLengthInSecs: chunkLengthInSecs,
+        tokensPath: tokensFilePath,
+        encoderPath: encoderFilePath,
+        decoderPath: decoderFilePath,
+        joinerPath: joinerFilePath,
+        hotwordsScore: hotwordsScore,
+        bufferLengthInSamples: bufferLengthInSamples ?? 512);
   }
 
   Future createStream(List<String>? phrases) async {
-    if (_createdStream != null) {
-      throw Exception("A request to create a stream is already pending.");
-    }
-    _createdStream = Completer();
-    _createStreamPort
-        .send(phrases?.map((x) => x.split("").join(" ")).toList().join("\n"));
-    var result = await _createdStream!.future;
-    if (result) {
-      _killed = false;
-    } else {
-      throw Exception("Failed to create stream. Is a recognizer available?");
-    }
-    _createdStream = null;
-    _hasStream = true;
-    return result;
+    var hotwords =
+        phrases?.map((x) => x.split("").join(" ")).toList().join("\n");
+
+    return _recognizer!.createStream(hotwords);
   }
 
   Future destroyStream() async {
-    _destroyStreamPort.send(true);
-    await Future.delayed(Duration.zero);
-    _hasStream = false;
+    _recognizer!.destroyStream();
   }
 
   Future destroyRecognizer() async {
-    if (_hasRecognizer) {
-      _killRecognizerPort.send(true);
-      _killed = true;
-    }
-    _hasRecognizer = false;
+    _recognizer!.destroyRecognizer();
   }
 
   void acceptWaveform(Uint8List data) async {
-    if (_killed) {
-      print(
-          "Warning - recognizer has been destroyed, this data will be ignored");
-      return;
-    }
-    _waveformStreamPort.send(data);
+    _recognizer!.acceptWaveform(data);
   }
 
-  Future<ASRResult> decodeWaveform(Uint8List data) async {
-    if (_hasStream) {
-      throw Exception("Stream already exists. Call [destroyStream] first");
+  Future<ASRResult?> decodeWaveform(Uint8List data) async {
+    var result = await _recognizer!.decodeWaveform(data);
+    if (result == null) {
+      return null;
     }
-    final completer = Completer<ASRResult>();
-
-    await createStream(null);
-    var resultListener = result.listen((result) {
-      completer.complete(result);
-    });
-    _decodeWaveformPort.send(data);
-    await completer.future;
-    resultListener.cancel();
-    await destroyStream();
-
-    return completer.future;
+    var decoded = _decodeStringResult(result);
+    return decoded;
   }
 
   Future dispose() async {
-    (await _runner)?.kill();
-    await _setupListener.cancel();
-    await _resultListener.cancel();
-    await _createdStreamListener.cancel();
-    _shutdownPort.send(true);
-    _createdRecognizerPort.close();
-    _createdStreamPort.close();
+    await _recognizer!.dispose();
   }
 }

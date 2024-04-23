@@ -1,4 +1,3 @@
-import 'dart:ffi';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -12,12 +11,16 @@ void main() async {
   }
   var scriptDir = File(Platform.script.toFilePath()).parent.path;
 
+  var bufferLengthInBytes = 1024;
+  var bufferLengthInSamples = bufferLengthInBytes ~/ 2;
+
   await sherpaOnnx.createRecognizer(
       16000,
       "$scriptDir/model/tokens.txt",
       "$scriptDir/model/encoder-epoch-99-avg-1.int8.with_runtime_opt.ort",
       "$scriptDir/model/decoder-epoch-99-avg-1.int8.with_runtime_opt.ort",
-      "$scriptDir/model/joiner-epoch-99-avg-1.int8.with_runtime_opt.ort");
+      "$scriptDir/model/joiner-epoch-99-avg-1.int8.with_runtime_opt.ort",
+      bufferLengthInSamples: bufferLengthInSamples);
 
   /********************************/
   /* first simulate streaming     */
@@ -33,8 +36,9 @@ void main() async {
   var listener = sherpaOnnx.result.listen((ASRResult asrResult) {
     results.add(asrResult);
   });
-  for (int i = 0; i < data.length; i += 1024) {
-    var segment = data.sublist(i, min(data.length, i + 1024));
+
+  for (int i = 0; i < data.length; i += bufferLengthInBytes) {
+    var segment = data.sublist(i, min(data.length, i + bufferLengthInBytes));
     sherpaOnnx.acceptWaveform(segment);
     audioBuffer.add(segment);
   }
@@ -53,18 +57,18 @@ void main() async {
     throw Exception("Decode failure, got $resultString");
   }
 
-  // print(results.last.words
-  //     .map((w) => "${w.start}:${w.end} ${w.word}")
-  //     .join("\n"));
+  print(results.last.words
+      .map((w) => "${w.start}:${w.end} ${w.word}")
+      .join("\n"));
 
   await sherpaOnnx.destroyStream();
   results.clear();
   /********************************/
   /* now decode the whole file    */
   /****************************** */
-  await sherpaOnnx.decodeWaveform(data);
+  var result = await sherpaOnnx.decodeWaveform(data);
   await Future.delayed(Duration.zero);
-  print(results);
+  print("Decoded file to $result");
 
   // cleanup
   await listener.cancel();

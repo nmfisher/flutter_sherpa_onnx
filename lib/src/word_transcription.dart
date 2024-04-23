@@ -19,6 +19,6 @@ class ASRResult {
 
   @override
   String toString() {
-    return "ASRResult(words='${join(sep: '')}')";
+    return "ASRResult(final=$isFinal,words='${join(sep: '')}')";
   }
 }
