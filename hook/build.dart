@@ -22,7 +22,8 @@ void main(List<String> args) async {
       language: Language.cpp,
       assetName: '$packageName.dart',
       sources: [
-        'native/src/dummy.c',
+        'native/src/extras.cpp',
+        // 'native/src/sherpa-onnx/csrc/resample.cc',
       ],
       includes: ['native/include', '${onnxDir}/ios/include'],
       flags: [

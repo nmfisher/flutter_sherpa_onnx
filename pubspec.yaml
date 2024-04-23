@@ -22,8 +22,10 @@ ffigen:
   headers:
     entry-points:
       - 'native/include/c-api.h'
+      - 'native/include/extras.h'
     include-directives:
       - 'native/include/c-api.h'
+      - 'native/include/extras.h'
   ffi-native:
     assetId: package:sherpa_onnx_dart/sherpa_onnx_dart.dart
 

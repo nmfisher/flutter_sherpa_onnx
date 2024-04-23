@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:ffi/ffi.dart';
+import 'package:sherpa_onnx_dart/src/sherpa_onnx_dart.g.dart';
 import 'package:sherpa_onnx_dart/src/sherpa_onnx_isolate.dart';
 import 'package:sherpa_onnx_dart/src/sherpa_onnx_recognizer.dart';
 import 'package:sherpa_onnx_dart/src/sherpa_onnx_recognizer_impl.dart';
@@ -113,5 +116,27 @@ class SherpaOnnx {
 
   Future dispose() async {
     await _recognizer!.dispose();
+  }
+
+  Future<Uint8List> resample(
+      Uint8List data, int oldSampleRate, int newSampleRate) async {
+    var length = data.length ~/ 2;
+    final floatPtr = calloc<Float>(length);
+    var int16Data = data.buffer.asInt16List(data.offsetInBytes, length);
+    floatPtr
+        .asTypedList(length)
+        .setRange(0, length, int16Data.map((i) => i / 32768.0));
+    final outPtr = calloc<Pointer<Float>>(1);
+    final outLenPtr = calloc<Int>(1);
+    sherpa_onnx_dart_resample(
+        floatPtr, length, oldSampleRate, newSampleRate, outPtr, outLenPtr);
+    final outData = Int16List.fromList(outPtr[0]
+        .asTypedList(outLenPtr.value)
+        .map((i) => (i * 32768.0).toInt())
+        .toList());
+    sherpa_onnx_dart_free(outPtr.value);
+    calloc.free(outPtr);
+    calloc.free(outLenPtr);
+    return outData.buffer.asUint8List(outData.offsetInBytes);
   }
 }

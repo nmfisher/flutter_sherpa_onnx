@@ -570,6 +570,27 @@ external int SherpaOnnxWriteWave(
   ffi.Pointer<ffi.Char> filename,
 );
 
+@ffi.Native<
+        ffi.Void Function(ffi.Pointer<ffi.Float>, ffi.Int, ffi.Int, ffi.Int,
+            ffi.Pointer<ffi.Pointer<ffi.Float>>, ffi.Pointer<ffi.Int>)>(
+    symbol: 'sherpa_onnx_dart_resample',
+    assetId: 'package:sherpa_onnx_dart/sherpa_onnx_dart.dart')
+external void sherpa_onnx_dart_resample(
+  ffi.Pointer<ffi.Float> data,
+  int length,
+  int sampleRateFrom,
+  int sampleRateTo,
+  ffi.Pointer<ffi.Pointer<ffi.Float>> outPtr,
+  ffi.Pointer<ffi.Int> outLen,
+);
+
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Float>)>(
+    symbol: 'sherpa_onnx_dart_free',
+    assetId: 'package:sherpa_onnx_dart/sherpa_onnx_dart.dart')
+external void sherpa_onnx_dart_free(
+  ffi.Pointer<ffi.Float> data,
+);
+
 /// Please refer to
 /// https://k2-fsa.github.io/sherpa/onnx/pretrained_models/index.html
 /// to download pre-trained models. That is, you can find encoder-xxx.onnx

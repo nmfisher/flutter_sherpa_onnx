@@ -16,6 +16,8 @@ class AudioBuffer {
 
   AudioBuffer.fixed(this._data, this._sampleRate);
 
+  Uint8List get data => _data.sublist(0, _bytesWritten);
+
   void add(Uint8List data) {
     int added = 0;
     for (int i = 0; i < data.length; i++) {

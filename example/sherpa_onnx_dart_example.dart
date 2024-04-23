@@ -72,15 +72,11 @@ void main() async {
 
   // cleanup
   await listener.cancel();
-  await sherpaOnnx.dispose();
 
-  // int i = 0;
-  // for (final word in results.last.words) {
-  //   print("Getting segment ${word.start}->${word.end}");
-  //   var segment = audioBuffer.getSegment(word.start!, word.end! - word.start!);
-  //   var outfile = File("/tmp/segment_$i.pcm");
-  //   outfile.writeAsBytesSync(segment);
-  //   print("Wrote to ${outfile.path}");
-  //   i += 1;
-  // }
+  var resampled = await sherpaOnnx.resample(data, 16000, 24000);
+
+  File("$scriptDir/resampled.pcm")
+      .writeAsBytesSync(resampled.buffer.asUint8List(resampled.offsetInBytes));
+
+  await sherpaOnnx.dispose();
 }
