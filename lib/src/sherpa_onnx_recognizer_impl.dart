@@ -54,7 +54,9 @@ class SherpaOnnxRecognizerImpl extends SherpaOnnxRecognizer {
       required String decoderPath,
       required String joinerPath,
       required double hotwordsScore,
-      int? bufferLengthInSamples}) async {
+      int? bufferLengthInSamples,
+      double minTrailingSilence1 = 2.4,
+      double minTrailingSilence2 = 1.2}) async {
     if (_recognizer != null) {
       throw Exception(
           "Recognizer already exists, make sure to call kill first.");
@@ -112,8 +114,8 @@ class SherpaOnnxRecognizerImpl extends SherpaOnnxRecognizer {
     _config!.ref.feat_config.feature_dim = 80;
 
     _config!.ref.enable_endpoint = 1;
-    _config!.ref.rule1_min_trailing_silence = 2.4;
-    _config!.ref.rule2_min_trailing_silence = 1.2;
+    _config!.ref.rule1_min_trailing_silence = minTrailingSilence1;
+    _config!.ref.rule2_min_trailing_silence = minTrailingSilence2;
     _config!.ref.rule3_min_utterance_length = 300;
 
     _config!.ref.model_config.model_type = nullptr;
@@ -176,6 +178,7 @@ class SherpaOnnxRecognizerImpl extends SherpaOnnxRecognizer {
           hotwordsString.toNativeUtf8(allocator: calloc).cast<Char>());
     }
     Reset(_recognizer!, _stream!);
+    _buffer!.reset();
     return _stream != nullptr;
   }
 
@@ -243,6 +246,7 @@ class SherpaOnnxRecognizerImpl extends SherpaOnnxRecognizer {
     if (result != nullptr) {
       if (result.ref.json != nullptr) {
         var dartString = result.ref.json.cast<Utf8>().toDartString();
+
         resultString =
             "${dartString.substring(0, dartString.length - 1)}, \"is_endpoint\":$isEndpoint}";
       }
