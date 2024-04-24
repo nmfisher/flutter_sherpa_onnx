@@ -9,12 +9,15 @@ class AudioBuffer {
   int get sampleRate => _sampleRate;
 
   int _bytesWritten = 0;
+  int get written => _bytesWritten;
 
   AudioBuffer(this._sampleRate, {int capacityInSeconds = 30}) {
     _data = Uint8List(_sampleRate * 2 * capacityInSeconds);
   }
 
-  AudioBuffer.fixed(this._data, this._sampleRate);
+  AudioBuffer.fixed(this._data, this._sampleRate) {
+    this._bytesWritten = _data.length;
+  }
 
   Uint8List get data => _data.sublist(0, _bytesWritten);
 
