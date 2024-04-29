@@ -23,7 +23,6 @@ void main(List<String> args) async {
       assetName: '$packageName.dart',
       sources: [
         'native/src/extras.cpp',
-        // 'native/src/sherpa-onnx/csrc/resample.cc',
       ],
       includes: ['native/include', '${onnxDir}/ios/include'],
       flags: [
@@ -33,7 +32,6 @@ void main(List<String> args) async {
         'onnxruntime',
         '-framework',
         'Foundation',
-        "-lcargs",
         "-lkaldi-decoder-core",
         "-lsherpa-onnx-fst",
         "-lsherpa-onnx-c-api",
