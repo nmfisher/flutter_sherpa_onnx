@@ -29,7 +29,6 @@ class RingBuffer {
     if (offset % 2 != 0) {
       offset++;
     }
-    // var length = (data.length - offset) ~/ 2;
     var floatData = Int16List.sublistView(data)
         .map((x) => x / 32768.0)
         .cast<double>()
