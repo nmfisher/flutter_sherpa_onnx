@@ -1,0 +1,60 @@
+PODS:
+  - audio_session (0.0.1):
+    - FlutterMacOS
+  - flutter_ffi_asset_helper (0.0.1):
+    - FlutterMacOS
+  - flutter_sherpa_onnx (0.0.1):
+    - FlutterMacOS
+  - FlutterMacOS (1.0.0)
+  - just_audio (0.0.1):
+    - FlutterMacOS
+  - mic_stream (0.5.2):
+    - FlutterMacOS
+  - path_provider_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - record_darwin (1.0.0):
+    - Flutter
+    - FlutterMacOS
+
+DEPENDENCIES:
+  - audio_session (from `Flutter/ephemeral/.symlinks/plugins/audio_session/macos`)
+  - flutter_ffi_asset_helper (from `Flutter/ephemeral/.symlinks/plugins/flutter_ffi_asset_helper/macos`)
+  - flutter_sherpa_onnx (from `Flutter/ephemeral/.symlinks/plugins/flutter_sherpa_onnx/macos`)
+  - FlutterMacOS (from `Flutter/ephemeral`)
+  - just_audio (from `Flutter/ephemeral/.symlinks/plugins/just_audio/macos`)
+  - mic_stream (from `Flutter/ephemeral/.symlinks/plugins/mic_stream/macos`)
+  - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
+  - record_darwin (from `Flutter/ephemeral/.symlinks/plugins/record_darwin/macos`)
+
+EXTERNAL SOURCES:
+  audio_session:
+    :path: Flutter/ephemeral/.symlinks/plugins/audio_session/macos
+  flutter_ffi_asset_helper:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_ffi_asset_helper/macos
+  flutter_sherpa_onnx:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_sherpa_onnx/macos
+  FlutterMacOS:
+    :path: Flutter/ephemeral
+  just_audio:
+    :path: Flutter/ephemeral/.symlinks/plugins/just_audio/macos
+  mic_stream:
+    :path: Flutter/ephemeral/.symlinks/plugins/mic_stream/macos
+  path_provider_foundation:
+    :path: Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin
+  record_darwin:
+    :path: Flutter/ephemeral/.symlinks/plugins/record_darwin/macos
+
+SPEC CHECKSUMS:
+  audio_session: dea1f41890dbf1718f04a56f1d6150fd50039b72
+  flutter_ffi_asset_helper: 6dfb0a7bf41687bf86915b67bb13c39d0080f409
+  flutter_sherpa_onnx: 94867d1ad87656c96500a60f4ad711c679086a17
+  FlutterMacOS: 8f6f14fa908a6fb3fba0cd85dbd81ec4b251fb24
+  just_audio: 9b67ca7b97c61cfc9784ea23cd8cc55eb226d489
+  mic_stream: c3bc8a10c5451a0f5ef75a54a75caf25a3d146c4
+  path_provider_foundation: 29f094ae23ebbca9d3d0cec13889cd9060c0e943
+  record_darwin: 1f6619f2abac4d1ca91d3eeab038c980d76f1517
+
+PODFILE CHECKSUM: 9cc8fc8fc62b1d9a89fd6f974ad4157b35254030
+
+COCOAPODS: 1.12.1
