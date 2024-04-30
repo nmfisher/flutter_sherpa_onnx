@@ -11,8 +11,8 @@ import 'package:native_toolchain_c/native_toolchain_c.dart';
 void main(List<String> args) async {
   await build(args, (config, output) async {
     var platform = config.targetOS.toString().toLowerCase();
-    var onnxDir = File(config.packageRoot.path).parent.path + "/flutter_onnx";
-    var onnxLibDir = "$onnxDir/$platform/lib";
+    var onnxDir = "${config.packageRoot.path}/onnxruntime_prebuilt";
+    var onnxLibDir = "$onnxDir/lib/$platform";
     var libDir = "${config.packageRoot.toFilePath()}/native/lib/$platform/";
 
     final packageName = config.packageName;
@@ -24,7 +24,7 @@ void main(List<String> args) async {
       sources: [
         'native/src/extras.cpp',
       ],
-      includes: ['native/include', '${onnxDir}/ios/include'],
+      includes: ['native/include', '$onnxDir/include'],
       flags: [
         '-std=c++17',
         "-F$onnxLibDir",
