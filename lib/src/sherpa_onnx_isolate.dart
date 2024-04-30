@@ -101,7 +101,9 @@ class SherpaOnnxIsolate extends SherpaOnnxRecognizer {
       required String decoderPath,
       required String joinerPath,
       required double hotwordsScore,
-      int? bufferLengthInSamples}) async {
+      int? bufferLengthInSamples,
+      double minTrailingSilence1 = 2.4,
+      double minTrailingSilence2 = 1.2}) async {
     await _isolateSetupComplete.future;
     final completer = Completer<bool>();
     late StreamSubscription listener;

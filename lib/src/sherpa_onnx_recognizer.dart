@@ -17,7 +17,9 @@ abstract class SherpaOnnxRecognizer {
       required String decoderPath,
       required String joinerPath,
       required double hotwordsScore,
-      int? bufferLengthInSamples});
+      int? bufferLengthInSamples,
+      double minTrailingSilence1 = 2.4,
+      double minTrailingSilence2 = 1.2});
 
   Future<bool> get ready;
   bool isReadyForInput();
