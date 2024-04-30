@@ -74,7 +74,9 @@ class SherpaOnnx {
       String encoderFilePath, String decoderFilePath, String joinerFilePath,
       {double chunkLengthInSecs = 0.25,
       double hotwordsScore = 20.0,
-      int? bufferLengthInSamples}) async {
+      int? bufferLengthInSamples, 
+      double minTrailingSilence1 = 2.4,
+      double minTrailingSilence2 = 1.2}) async {
     return _recognizer!.createRecognizer(
         sampleRate: sampleRate,
         chunkLengthInSecs: chunkLengthInSecs,
@@ -83,7 +85,9 @@ class SherpaOnnx {
         decoderPath: decoderFilePath,
         joinerPath: joinerFilePath,
         hotwordsScore: hotwordsScore,
-        bufferLengthInSamples: bufferLengthInSamples ?? 512);
+        bufferLengthInSamples: bufferLengthInSamples ?? 512,
+        minTrailingSilence1:minTrailingSilence1,
+      minTrailingSilence2:minTrailingSilence2);
   }
 
   Future createStream(List<String>? phrases) async {
@@ -102,6 +106,9 @@ class SherpaOnnx {
   }
 
   void acceptWaveform(Uint8List data) async {
+    if (data.offsetInBytes % 2 != 0) {
+      data = Uint8List.fromList(data);
+    }
     _recognizer!.acceptWaveform(data);
   }
 
