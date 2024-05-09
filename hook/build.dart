@@ -14,6 +14,10 @@ void main(List<String> args) async {
     var onnxDir = "${config.packageRoot.path}/onnxruntime_prebuilt";
     var onnxLibDir = "$onnxDir/lib/$platform";
     var libDir = "${config.packageRoot.toFilePath()}/native/lib/$platform/";
+    
+    if(platform == "macos") { 
+        onnxLibDir += "/dynamic";
+    }
 
     final packageName = config.packageName;
 
@@ -32,6 +36,8 @@ void main(List<String> args) async {
         'onnxruntime',
         '-framework',
         'Foundation',
+        if(platform == "ios")
+        "-mios-version-min=8.0"
         "-lkaldi-decoder-core",
         "-lsherpa-onnx-fst",
         "-lsherpa-onnx-c-api",
