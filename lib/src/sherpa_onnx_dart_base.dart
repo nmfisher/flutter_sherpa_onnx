@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
-import 'dart:isolate';
+
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
@@ -9,7 +9,7 @@ import 'package:sherpa_onnx_dart/src/sherpa_onnx_dart.g.dart';
 import 'package:sherpa_onnx_dart/src/sherpa_onnx_isolate.dart';
 import 'package:sherpa_onnx_dart/src/sherpa_onnx_recognizer.dart';
 import 'package:sherpa_onnx_dart/src/sherpa_onnx_recognizer_impl.dart';
-import 'package:sherpa_onnx_dart/src/word_transcription.dart';
+import 'package:shared_asr_utils_dart/shared_asr_utils.dart';
 
 ///
 /// A Dart wrapper around a sherpa-onnx Recognizer/Stream
@@ -74,7 +74,7 @@ class SherpaOnnx {
       String encoderFilePath, String decoderFilePath, String joinerFilePath,
       {double chunkLengthInSecs = 0.25,
       double hotwordsScore = 20.0,
-      int? bufferLengthInSamples, 
+      int? bufferLengthInSamples,
       double minTrailingSilence1 = 2.4,
       double minTrailingSilence2 = 1.2}) async {
     return _recognizer!.createRecognizer(
@@ -86,8 +86,8 @@ class SherpaOnnx {
         joinerPath: joinerFilePath,
         hotwordsScore: hotwordsScore,
         bufferLengthInSamples: bufferLengthInSamples ?? 512,
-        minTrailingSilence1:minTrailingSilence1,
-      minTrailingSilence2:minTrailingSilence2);
+        minTrailingSilence1: minTrailingSilence1,
+        minTrailingSilence2: minTrailingSilence2);
   }
 
   Future createStream(List<String>? phrases) async {

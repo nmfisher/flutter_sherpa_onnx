@@ -10,6 +10,9 @@ dependencies:
   ffi: 
   ffigen:
   fftea:
+  shared_asr_utils_dart:
+    git:
+      url: https://github.com/nmfisher/shared_asr_utils_dart.git
 
 dev_dependencies:
   lints: ^3.0.0
