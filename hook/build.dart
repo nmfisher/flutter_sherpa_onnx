@@ -1,9 +1,6 @@
 // Copyright (c) 2023, the Dart project authors.  Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
-
-import 'dart:io';
-
 import 'package:logging/logging.dart';
 import 'package:native_assets_cli/native_assets_cli.dart';
 import 'package:native_toolchain_c/native_toolchain_c.dart';
@@ -37,7 +34,7 @@ void main(List<String> args) async {
         '-framework',
         'Foundation',
         if(platform == "ios")
-        "-mios-version-min=8.0"
+        "-mios-version-min=8.0",
         "-lkaldi-decoder-core",
         "-lsherpa-onnx-fst",
         "-lsherpa-onnx-c-api",
