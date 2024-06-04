@@ -1,6 +1,6 @@
 name: sherpa_onnx_dart
 description: A Dart package wrapping the sherpa-onnx speech recognition library.
-version: 1.0.0
+version: 0.0.1
 
 environment:
   sdk: ^3.3.0
@@ -10,9 +10,7 @@ dependencies:
   ffi: 
   ffigen:
   fftea:
-  shared_asr_utils_dart:
-    git:
-      url: https://github.com/nmfisher/shared_asr_utils_dart.git
+  shared_asr_utils: ^0.0.1
 
 dev_dependencies:
   lints: ^3.0.0

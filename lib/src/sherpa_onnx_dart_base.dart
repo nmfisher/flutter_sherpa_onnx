@@ -9,7 +9,7 @@ import 'package:sherpa_onnx_dart/src/sherpa_onnx_dart.g.dart';
 import 'package:sherpa_onnx_dart/src/sherpa_onnx_isolate.dart';
 import 'package:sherpa_onnx_dart/src/sherpa_onnx_recognizer.dart';
 import 'package:sherpa_onnx_dart/src/sherpa_onnx_recognizer_impl.dart';
-import 'package:shared_asr_utils_dart/shared_asr_utils.dart';
+import 'package:shared_asr_utils/shared_asr_utils.dart';
 
 ///
 /// A Dart wrapper around a sherpa-onnx Recognizer/Stream
@@ -37,7 +37,7 @@ class SherpaOnnx {
   ASRResult _decodeStringResult(String result) {
     var resultMap = json.decode(result);
     bool isFinal = resultMap["is_endpoint"] == true;
-
+    
     var numTokens = resultMap["tokens"].length;
     var words = <WordTranscription>[];
     for (int i = 0; i < numTokens; i++) {
@@ -48,7 +48,8 @@ class SherpaOnnx {
               ? null
               : resultMap["start_time"] + resultMap["timestamps"][i + 1]));
     }
-    return ASRResult(isFinal, words);
+    final text = words.map((w) => w.word).join(" ");
+    return ASRResult(isFinal, words, text);
   }
 
   void _onResult(String? result) {
