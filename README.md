@@ -2,7 +2,10 @@
 
 A Dart package to use the [k2/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) speech recognition platform.
 
-> There is now an official Dart/Flutter package published in the `sherpa-onnx` repository, so I strongly suggest you use that instead.
+> ⛔ NOTE ⛔
+> There is now an official Dart/Flutter package published in the `sherpa-onnx` repository.
+> I strongly suggest you use that instead.
+> 
 
 See `examples/flutter` for how to integrate this into a running Flutter application (basically, you just need to pass a stream of 16-bit PCM encoded data).
 
